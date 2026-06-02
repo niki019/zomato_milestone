@@ -8,5 +8,6 @@ Click the link below to open and test the running recommendation application ins
 
 ### Features to Try:
 *   **State / City Dropdowns**: Try selecting `Delhi` ➔ `New Delhi` or `Maharashtra` ➔ `Mumbai` to see the **Generative Search** recommend local restaurants from the AI's pre-trained knowledge base.
-*   **Filter Toggle**: Use the orange sliders button (`🎛️`) in the bottom right corner or the menu icon (`☰`) at the top to slide open the search preferences.
+*   **Search Preferences & Filters**: Customize your choices directly on the main page using the "Search Preferences & Filters" panel. Adjust State, City, Location, Cuisine, Budget, Minimum Rating, and even enter custom text preferences.
 *   **AI Insight explanation**: Read the personalized justifications generated for each restaurant card.
+
