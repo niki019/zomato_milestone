@@ -1,5 +1,9 @@
 # 🍔 Zomato AI Restaurant Recommender
 
+👉 **[Click Here to Open and Test the Live App Instantly!](https://share.streamlit.io/niki019/zomato_milestone/main/app.py)** *(No installation, setup, or deployment required!)*
+
+---
+
 [![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=https://github.com/niki019/zomato_milestone&branch=main&main_file=app.py)
 
 An intelligent, premium mobile-responsive restaurant suggestion dashboard combining deterministic SQL-like dataset filtering with LLM-powered personalization.
