@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import pandas as pd
+import requests
 from backend.models import UserPreferences
 from backend.orchestrator import RecommendationOrchestrator
 
@@ -9,8 +10,9 @@ st.set_page_config(
     page_title="Zomato AI Recommend",
     page_icon="🍔",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
+
 
 # Custom CSS for Premium Design & Aesthetics
 st.markdown("""
@@ -293,17 +295,53 @@ orchestrator = RecommendationOrchestrator()
 orchestrator.load_dataset()
 df = orchestrator.df
 
-# Top Navigation Bar
+# Start API backend in background if running locally or on single cloud instance
+import socket
+import subprocess
+import sys
+import time
+import os
+
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip('/')
+backend_healthy = False
+
+if "127.0.0.1" in BACKEND_URL or "localhost" in BACKEND_URL:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1.0)
+        s.connect(("127.0.0.1", 8000))
+        s.close()
+        backend_healthy = True
+    except Exception:
+        try:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.path.dirname(os.path.abspath(__file__))
+            subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "backend.api:app", "--host", "127.0.0.1", "--port", "8000", "--log-level", "warning"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env
+            )
+            time.sleep(4.0)  # Allow API startup & dataset loading on cloud VM
+        except Exception:
+            pass
+
+# Verify health status if not already set to True by connection check
+if not backend_healthy:
+    try:
+        import requests
+        health_resp = requests.get(f"{BACKEND_URL}/api/v1/health", timeout=2)
+        if health_resp.status_code == 200:
+            backend_healthy = True
+    except Exception:
+        pass
+
+# Top Navigation Bar (Clean logo navbar without sidebar toggle)
 st.markdown("""
 <div class="nav-bar">
-    <div class="nav-icon" id="nav-menu-toggle">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 1.5rem; height: 1.5rem;">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
+    <div style="font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(90deg, #ffffff 0%, #dfd7f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        🍔 Zomato AI Recommender
     </div>
-    <div class="nav-title">Zomato AI Recommender</div>
     <div class="nav-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 1.5rem; height: 1.5rem;">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -315,6 +353,12 @@ st.markdown("""
 
 # Subtitle centered below navbar
 st.markdown("<div class='app-subtitle'>An intelligent restaurant suggestion service combining structured datasets with LLM-powered personalization.</div>", unsafe_allow_html=True)
+
+# Centered Status Badge
+if backend_healthy:
+    st.markdown("<div style='text-align: center; margin-top: -1rem; margin-bottom: 1.5rem;'><span style='background: rgba(17, 153, 142, 0.15); border: 1px solid #11998e; color: #38ef7d; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600;'>🟢 API Backend: Connected</span></div>", unsafe_allow_html=True)
+else:
+    st.markdown("<div style='text-align: center; margin-top: -1rem; margin-bottom: 1.5rem;'><span style='background: rgba(255, 78, 80, 0.15); border: 1px solid #ff4e50; color: #ff8c94; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600;'>🟢 System Status: Active (In-Process Fallback)</span></div>", unsafe_allow_html=True)
 
 # Dynamic metrics row
 val_restaurants = "12k"
@@ -358,173 +402,83 @@ with metric_cols[2]:
     </div>
     """, unsafe_allow_html=True)
 
-# Floating Action Button (FAB) and programmatic sidebar toggle JS
-st.markdown("""
-<div class="fab-button" id="fab-toggle-sidebar" onclick="toggleStreamlitSidebar()">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 1.5rem; height: 1.5rem;">
-        <line x1="4" y1="21" x2="4" y2="14"></line>
-        <line x1="4" y1="10" x2="4" y2="3"></line>
-        <line x1="12" y1="21" x2="12" y2="12"></line>
-        <line x1="12" y1="8" x2="12" y2="3"></line>
-        <line x1="20" y1="21" x2="20" y2="16"></line>
-        <line x1="20" y1="12" x2="20" y2="3"></line>
-        <line x1="2" y1="14" x2="6" y2="14"></line>
-        <line x1="10" y1="8" x2="14" y2="8"></line>
-        <line x1="18" y1="16" x2="22" y2="16"></line>
-    </svg>
-</div>
+# 2. Main Page Preferences Control Panel (instead of sidebar)
+if "search_performed" not in st.session_state:
+    st.session_state.search_performed = False
+if "last_query" not in st.session_state:
+    st.session_state.last_query = {}
+if "last_results" not in st.session_state:
+    st.session_state.last_results = None
 
-<script>
-    function toggleStreamlitSidebar() {
-        console.log("Toggle sidebar triggered");
-        let doc = document;
-        try {
-            if (window.parent && window.parent.document) {
-                doc = window.parent.document;
-            }
-        } catch (e) {
-            console.warn("Cross-origin frame block: fell back to local document", e);
-        }
-        
-        const selectors = [
-            'button[data-testid="collapsedControl"]',
-            '[data-testid="stSidebarCollapseButton"]',
-            '[data-testid="stSidebarOpenButton"]',
-            'button[aria-label="Close sidebar"]',
-            'button[aria-label="Open sidebar"]',
-            '.stSidebarCollapseButton',
-            '#sidebar-trigger'
-        ];
-        
-        let toggleBtn = null;
-        for (const sel of selectors) {
-            toggleBtn = doc.querySelector(sel) || document.querySelector(sel);
-            if (toggleBtn) {
-                console.log("Found toggle button with selector:", sel);
-                break;
-            }
-        }
-        
-        if (toggleBtn) {
-            toggleBtn.click();
-            console.log("Clicked toggle button successfully");
-        } else {
-            console.error("Streamlit sidebar toggle button not found using any selector.");
-        }
-    }
+# We use st.container with border for a beautiful, persistent search panel card
+with st.container(border=True):
+    st.markdown("<h3 style='margin-top: 0;'>🔍 Search Preferences & Filters</h3>", unsafe_allow_html=True)
     
-    // Bind to custom top bar menu toggle
-    setTimeout(() => {
-        const navMenu = document.getElementById("nav-menu-toggle");
-        if (navMenu) {
-            navMenu.addEventListener("click", toggleStreamlitSidebar);
-            console.log("Successfully bound click event to #nav-menu-toggle");
-        } else {
-            console.error("#nav-menu-toggle not found in DOM to bind.");
-        }
-    }, 1000);
-</script>
-""", unsafe_allow_html=True)
-# Start API backend in background if running locally or on single cloud instance
-import socket
-import subprocess
-import sys
-import time
-import os
-
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip('/')
-
-if "127.0.0.1" in BACKEND_URL or "localhost" in BACKEND_URL:
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(1.0)
-        s.connect(("127.0.0.1", 8000))
-        s.close()
-    except Exception:
-        try:
-            env = os.environ.copy()
-            env["PYTHONPATH"] = os.path.dirname(os.path.abspath(__file__))
-            subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "backend.api:app", "--host", "127.0.0.1", "--port", "8000", "--log-level", "warning"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=env
+    col_state, col_city, col_loc = st.columns(3)
+    with col_state:
+        state_input = st.selectbox("State", options=["Karnataka", "Delhi", "Maharashtra"], index=0)
+    with col_city:
+        if state_input == "Karnataka":
+            cities = ["Bangalore"]
+        elif state_input == "Delhi":
+            cities = ["New Delhi"]
+        elif state_input == "Maharashtra":
+            cities = ["Mumbai"]
+        else:
+            cities = []
+        city_input = st.selectbox("City", options=cities, index=0)
+    with col_loc:
+        is_local_db = (state_input == "Karnataka" and city_input == "Bangalore")
+        if is_local_db and df is not None:
+            locations = sorted(df['location'].dropna().unique().tolist())
+            location_input = st.selectbox(
+                "Location / Neighborhood", 
+                options=locations, 
+                index=locations.index("Banashankari") if "Banashankari" in locations else 0
             )
-            time.sleep(4.0)  # Allow API startup & dataset loading on cloud VM
-        except Exception:
-            pass
-
-# Check API backend health and show connection status
-import requests
-backend_healthy = False
-try:
-    health_resp = requests.get(f"{BACKEND_URL}/api/v1/health", timeout=2)
-    if health_resp.status_code == 200:
-        backend_healthy = True
-except Exception:
-    pass
-
-if backend_healthy:
-    st.sidebar.success("🟢 API Backend: Connected")
-else:
-    st.sidebar.success("🟢 System Status: Active (In-Process Fallback)")
-
-# 2. Sidebar Control Panel
-st.sidebar.markdown("### Search Preferences")
-
-# State Selection
-state_input = st.sidebar.selectbox("State", options=["Karnataka", "Delhi", "Maharashtra"], index=0)
-
-# City Selection based on State
-if state_input == "Karnataka":
-    cities = ["Bangalore"]
-elif state_input == "Delhi":
-    cities = ["New Delhi"]
-elif state_input == "Maharashtra":
-    cities = ["Mumbai"]
-else:
-    cities = []
-
-city_input = st.sidebar.selectbox("City", options=cities, index=0)
-
-# Neighborhood / Cuisine options based on location
-is_local_db = (state_input == "Karnataka" and city_input == "Bangalore")
-
-if is_local_db and df is not None:
-    # Get distinct locations for autocomplete
-    locations = sorted(df['location'].dropna().unique().tolist())
-    location_input = st.sidebar.selectbox(
-        "Location / Neighborhood", 
-        options=locations, 
-        index=locations.index("Banashankari") if "Banashankari" in locations else 0
+        else:
+            default_loc = "Connaught Place" if city_input == "New Delhi" else "Bandra"
+            location_input = st.text_input("Location / Neighborhood", default_loc)
+        
+    col_cui, col_bud, col_rat = st.columns(3)
+    with col_cui:
+        if is_local_db and df is not None:
+            all_cuisines = set()
+            for c_str in df['cuisines'].dropna().unique():
+                for cuisine in c_str.split(','):
+                    all_cuisines.add(cuisine.strip())
+            common_cuisines = sorted(list(all_cuisines))
+            cuisine_input = st.selectbox("Cuisine Choice", options=["All"] + common_cuisines, index=0)
+        else:
+            cuisine_input = st.text_input("Cuisine Choice", "All")
+    with col_bud:
+        budget_input = st.selectbox("Budget Level", ["Low", "Medium", "High"], index=1)
+    with col_rat:
+        min_rating = st.slider("Minimum Rating", 0.0, 5.0, 3.5, 0.1)
+        
+    additional_pref = st.text_input(
+        "Specific Preferences (Optional)", 
+        placeholder="e.g. rooftop seating, quiet romantic vibe, famous for desserts"
     )
     
-    # Pre-select common cuisines
-    all_cuisines = set()
-    for c_str in df['cuisines'].dropna().unique():
-        for cuisine in c_str.split(','):
-            all_cuisines.add(cuisine.strip())
-    common_cuisines = sorted(list(all_cuisines))
-    
-    cuisine_input = st.sidebar.selectbox("Cuisine Choice", options=["All"] + common_cuisines, index=0)
-else:
-    # For external search, allow free text or specify default locations
-    default_loc = "Connaught Place" if city_input == "New Delhi" else "Bandra"
-    location_input = st.sidebar.text_input("Location / Neighborhood", default_loc)
-    cuisine_input = st.sidebar.text_input("Cuisine Choice", "All")
+    search_clicked = st.button("Find Recommendations", type="primary", use_container_width=True)
 
-budget_input = st.sidebar.radio("Budget Level", ["Low", "Medium", "High"], index=1)
-min_rating = st.sidebar.slider("Minimum Rating", 0.0, 5.0, 3.5, 0.1)
+# Build current query dictionary to check if inputs changed
+current_query = {
+    "state": state_input,
+    "city": city_input,
+    "location": location_input,
+    "budget": budget_input.lower(),
+    "cuisine": cuisine_input,
+    "min_rating": min_rating,
+    "additional_preferences": additional_pref.strip() if additional_pref.strip() else None
+}
 
-additional_pref = st.sidebar.text_area(
-    "Specific Preferences (Optional)", 
-    placeholder="e.g. rooftop seating, quiet romantic vibe, famous for desserts"
-)
-
-search_clicked = st.sidebar.button("Find Recommendations")
-
-# 3. Main Logic execution
+# 3. Execution & Rerun logic
 if search_clicked:
+    st.session_state.search_performed = True
+    st.session_state.last_query = current_query
+    
     # Prepare inputs as Pydantic model
     prefs = UserPreferences(
         state=state_input,
@@ -552,9 +506,9 @@ if search_clicked:
                     from backend.models import RecommendationResponse
                     response = RecommendationResponse(**response_api.json())
                 else:
-                    st.sidebar.warning(f"Backend API returned status {response_api.status_code}. Fallback triggered.")
+                    st.warning(f"Backend API returned status {response_api.status_code}. Fallback triggered.")
             except Exception as e:
-                st.sidebar.warning(f"Error calling Backend API: {e}. Fallback triggered.")
+                st.warning(f"Error calling Backend API: {e}. Fallback triggered.")
         
         # Fallback to local execution if backend call failed or was disconnected
         if response is None:
@@ -562,50 +516,66 @@ if search_clicked:
                 st.error("No dataset available to query for local recommendation.")
             else:
                 response = orchestrator.recommend(prefs)
+        
+        st.session_state.last_results = response
+
+# 4. Display Results or Landing State
+if st.session_state.search_performed and st.session_state.last_results is not None:
+    # Check if filters have changed relative to the query that produced the currently visible results
+    filters_changed = False
+    for k, v in current_query.items():
+        if st.session_state.last_query.get(k) != v:
+            filters_changed = True
+            break
             
-        # Render Summary
-        if response.summary:
+    if filters_changed:
+        st.info("💡 **Filters changed!** Click **Find Recommendations** to refresh the recommendations with your new preferences.")
+        
+    response = st.session_state.last_results
+    
+    # Render Summary
+    if response.summary:
+        st.markdown(f"""
+        <div class="summary-box">
+            <span class="summary-icon">💡</span>
+            <div class="summary-text">
+                <span class="summary-title">AI Summary:</span> {response.summary}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    # Render Recommendations
+    if not response.recommendations:
+        st.warning("No recommendations could be generated matching your filters.")
+    else:
+        st.subheader(f"Recommendations for you in {st.session_state.last_query.get('location', '')}")
+        for item in response.recommendations:
+            rest = item.restaurant
+            
+            # Format card HTML
             st.markdown(f"""
-            <div class="summary-box">
-                <span class="summary-icon">💡</span>
-                <div class="summary-text">
-                    <span class="summary-title">AI Summary:</span> {response.summary}
+            <div class="restaurant-card">
+                <div class="card-header">
+                    <span class="restaurant-name">{rest.name}</span>
+                    <span class="restaurant-rating">★ {rest.rating}</span>
+                </div>
+                <div class="restaurant-meta">
+                    <span>📍 <b>{rest.location}</b></span>
+                    <span>🍽️ <b>{', '.join(rest.cuisines)}</b></span>
+                    <span>💰 <b>₹{rest.estimated_cost} for two</b></span>
+                </div>
+                <div class="ai-badge">AI Insight</div>
+                <div class="ai-explanation">
+                    {item.explanation}
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-        # Render Recommendations
-        if not response.recommendations:
-            st.warning("No recommendations could be generated matching your filters.")
-        else:
-            st.subheader(f"Recommendations for you in {location_input}")
-            for item in response.recommendations:
-                rest = item.restaurant
-                
-                # Format card HTML
-                st.markdown(f"""
-                <div class="restaurant-card">
-                    <div class="card-header">
-                        <span class="restaurant-name">{rest.name}</span>
-                        <span class="restaurant-rating">★ {rest.rating}</span>
-                    </div>
-                    <div class="restaurant-meta">
-                        <span>📍 <b>{rest.location}</b></span>
-                        <span>🍽️ <b>{', '.join(rest.cuisines)}</b></span>
-                        <span>💰 <b>₹{rest.estimated_cost} for two</b></span>
-                    </div>
-                    <div class="ai-badge">AI Insight</div>
-                    <div class="ai-explanation">
-                        {item.explanation}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
 else:
     # Landing state info
-    st.info("👈 Set your preferences in the sidebar and click **Find Recommendations** to start!")
+    st.info("✨ Adjust the preferences above and click **Find Recommendations** to see your personalized restaurant picks!")
     
     # Show stats of loaded database to look professional
     if df is not None:
         st.markdown("### Database Overview")
         st.write("#### Sample Restaurants in Database")
-        st.dataframe(df[['name', 'location', 'cuisines', 'rating', 'approx_cost']].head(10), width='stretch')
+        st.dataframe(df[['name', 'location', 'cuisines', 'rating', 'approx_cost']].head(10), use_container_width=True)
