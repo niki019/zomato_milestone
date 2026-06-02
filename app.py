@@ -425,10 +425,33 @@ st.markdown("""
     }, 1000);
 </script>
 """, unsafe_allow_html=True)
+# Start API backend in background if running locally or on single cloud instance
+import socket
+import subprocess
+import sys
+import time
+
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip('/')
+
+if "127.0.0.1" in BACKEND_URL or "localhost" in BACKEND_URL:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1.0)
+        s.connect(("127.0.0.1", 8000))
+        s.close()
+    except Exception:
+        try:
+            subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "backend.api:app", "--host", "127.0.0.1", "--port", "8000", "--log-level", "warning"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            time.sleep(3.0)  # Allow API startup & dataset loading
+        except Exception:
+            pass
 
 # Check API backend health and show connection status
 import requests
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip('/')
 backend_healthy = False
 try:
     health_resp = requests.get(f"{BACKEND_URL}/api/v1/health", timeout=2)
@@ -436,7 +459,6 @@ try:
         backend_healthy = True
 except Exception:
     pass
-
 if backend_healthy:
     st.sidebar.success("🟢 API Backend: Connected")
 else:
