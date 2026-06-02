@@ -1,6 +1,6 @@
 # 🍔 Zomato AI Restaurant Recommender
 
-[![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=https://github.com/niki019/zomato_milestone)
+[![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=https://github.com/niki019/zomato_milestone&branch=main&main_file=app.py)
 
 An intelligent, premium mobile-responsive restaurant suggestion dashboard combining deterministic SQL-like dataset filtering with LLM-powered personalization.
 
@@ -26,7 +26,7 @@ This project is built using a decoupled architecture consisting of a **FastAPI R
 
 You can deploy this dashboard directly on **Streamlit Community Cloud** in seconds using the button below:
 
-[![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=https://github.com/niki019/zomato_milestone)
+[![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=https://github.com/niki019/zomato_milestone&branch=main&main_file=app.py)
 
 ### Setting up Secrets
 Once deployed on Streamlit Cloud, go to **Settings** ➔ **Secrets** and enter your configurations in TOML format:

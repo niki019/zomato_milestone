@@ -430,6 +430,7 @@ import socket
 import subprocess
 import sys
 import time
+import os
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip('/')
 
@@ -441,12 +442,15 @@ if "127.0.0.1" in BACKEND_URL or "localhost" in BACKEND_URL:
         s.close()
     except Exception:
         try:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.path.dirname(os.path.abspath(__file__))
             subprocess.Popen(
                 [sys.executable, "-m", "uvicorn", "backend.api:app", "--host", "127.0.0.1", "--port", "8000", "--log-level", "warning"],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                env=env
             )
-            time.sleep(3.0)  # Allow API startup & dataset loading
+            time.sleep(4.0)  # Allow API startup & dataset loading on cloud VM
         except Exception:
             pass
 
@@ -459,10 +463,11 @@ try:
         backend_healthy = True
 except Exception:
     pass
+
 if backend_healthy:
     st.sidebar.success("🟢 API Backend: Connected")
 else:
-    st.sidebar.warning("🔴 API Backend: Disconnected (Running In-Process)")
+    st.sidebar.success("🟢 System Status: Active (In-Process Fallback)")
 
 # 2. Sidebar Control Panel
 st.sidebar.markdown("### Search Preferences")
